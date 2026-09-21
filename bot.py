@@ -294,7 +294,7 @@ async def reject_submission(callback: CallbackQuery):
     )
 @dp.message(F.content_type == ContentType.TEXT)
 async def receive_text(message: Message):
-        if message.from_user.id == ADMIN_ID:
+    if message.from_user.id == ADMIN_ID:
         with closing(sqlite3.connect(DB_PATH)) as conn:
             row = conn.execute(
                 "SELECT id FROM submissions WHERE status = 'editing' ORDER BY id DESC LIMIT 1"
