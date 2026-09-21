@@ -255,19 +255,25 @@ async def edit_submission(callback: CallbackQuery):
     if callback.from_user.id != ADMIN_ID:
         await callback.answer("Нет доступа.", show_alert=True)
         return
+
     submission_id = int(callback.data.split(":")[1])
+
     submission = get_submission(submission_id)
+
     if not submission:
         await callback.answer("Заявка не найдена.", show_alert=True)
         return
-    update_status(submission_id, "edit")
+
+    update_status(submission_id, "editing")
+
     await callback.message.edit_reply_markup(reply_markup=None)
-    await callback.answer("Отправлено на доработку ✏️")
-    await bot.send_message(
-        ADMIN_ID,
-        f"✏️ История #{submission_id} отправлена на доработку.\n"
-        f"Статус: edit"
+
+    await callback.message.answer(
+        f"✏️ <b>Доработка истории #{submission_id}</b>\n\n"
+        "Отправь сюда новый текст для этой истории."
     )
+
+    await callback.answer()
 @dp.callback_query(F.data.startswith("reject:"))
 async def reject_submission(callback: CallbackQuery):
     if callback.from_user.id != ADMIN_ID:
@@ -288,6 +294,37 @@ async def reject_submission(callback: CallbackQuery):
     )
 @dp.message(F.content_type == ContentType.TEXT)
 async def receive_text(message: Message):
+        if message.from_user.id == ADMIN_ID:
+        with closing(sqlite3.connect(DB_PATH)) as conn:
+            row = conn.execute(
+                "SELECT id FROM submissions WHERE status = 'editing' ORDER BY id DESC LIMIT 1"
+            ).fetchone()
+
+        if row:
+            submission_id = row[0]
+
+            with closing(sqlite3.connect(DB_PATH)) as conn:
+                conn.execute(
+                    "UPDATE submissions SET text = ?, status = 'new' WHERE id = ?",
+                    (message.text, submission_id)
+                )
+                conn.commit()
+
+            submission = get_submission(submission_id)
+
+            await message.answer(
+                f"✅ Текст истории #{submission_id} обновлён.\n\n"
+                "История снова отправлена на модерацию."
+            )
+
+            await bot.send_message(
+                ADMIN_ID,
+                f"🆕 <b>Обновлённая история #{submission_id}</b>\n\n"
+                f"{message.text}",
+                reply_markup=moderation_keyboard(submission_id)
+            )
+
+            return
     if message.text.startswith("/"):
         return
     sid = await save_submission(
