@@ -193,19 +193,63 @@ async def approve_submission(callback: CallbackQuery):
     if callback.from_user.id != ADMIN_ID:
         await callback.answer("Нет доступа.", show_alert=True)
         return
+
     submission_id = int(callback.data.split(":")[1])
     submission = get_submission(submission_id)
+
     if not submission:
         await callback.answer("Заявка не найдена.", show_alert=True)
         return
-    update_status(submission_id, "approved")
-    await callback.message.edit_reply_markup(reply_markup=None)
-    await callback.answer("История одобрена ✅")
-    await bot.send_message(
-        ADMIN_ID,
-        f"✅ История #{submission_id} одобрена.\n"
-        f"Статус: approved"
-    )
+
+    _, user_id, username, text, content_type, file_id, status = submission
+
+    try:
+        post_text = text or "Без текста"
+
+        if content_type == "photo" and file_id:
+            await bot.send_photo(
+                "@proizoshlo_news",
+                file_id,
+                caption=post_text
+            )
+        elif content_type == "video" and file_id:
+            await bot.send_video(
+                "@proizoshlo_news",
+                file_id,
+                caption=post_text
+            )
+        elif content_type == "document" and file_id:
+            await bot.send_document(
+                "@proizoshlo_news",
+                file_id,
+                caption=post_text
+            )
+        else:
+            await bot.send_message(
+                "@proizoshlo_news",
+                post_text
+            )
+
+        update_status(submission_id, "published")
+
+        await callback.message.edit_reply_markup(reply_markup=None)
+        await callback.answer("Опубликовано! 🔥")
+
+        await bot.send_message(
+            ADMIN_ID,
+            f"🔥 История #{submission_id} опубликована в @proizoshlo_news"
+        )
+
+    except Exception as e:
+        await callback.answer(
+            "Не удалось опубликовать.",
+            show_alert=True
+        )
+
+        await bot.send_message(
+            ADMIN_ID,
+            f"⚠️ Ошибка публикации истории #{submission_id}:\n{e}"
+        )
 @dp.callback_query(F.data.startswith("edit:"))
 async def edit_submission(callback: CallbackQuery):
     if callback.from_user.id != ADMIN_ID:
